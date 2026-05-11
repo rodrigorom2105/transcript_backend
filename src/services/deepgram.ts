@@ -44,24 +44,20 @@ export function createDeepgramSession(
   const live: LiveClient = client.listen.live(LIVE_CONFIG);
 
   live.on(LiveTranscriptionEvents.Transcript, (data) => {
-    const channels: unknown[] = (data as { channel_index?: number[]; channels?: unknown[] }).channels ?? [];
+    // In multichannel mode each event is for one channel:
+    // channel_index[0] = which channel, channel (singular) = content
+    const d = data as { channel_index?: number[]; channel?: { alternatives?: { transcript?: string }[] } };
+    const channelIdx = d.channel_index?.[0] ?? 0;
+    const text = d.channel?.alternatives?.[0]?.transcript?.trim();
+    if (!text) return;
 
-    // Multichannel mode: data.channels is an array of channel results
-    if (Array.isArray(channels)) {
-      channels.forEach((ch: unknown, idx: number) => {
-        const channel = ch as { alternatives?: { transcript?: string }[] };
-        const text = channel.alternatives?.[0]?.transcript?.trim();
-        if (!text) return;
-
-        const turn: TranscriptTurn = {
-          speaker: idx === 0 ? 'agente' : 'cliente',
-          text,
-          timestamp: Date.now(),
-          channel: idx === 0 ? 0 : 1,
-        };
-        onTurn(turn);
-      });
-    }
+    const turn: TranscriptTurn = {
+      speaker: channelIdx === 0 ? 'agente' : 'cliente',
+      text,
+      timestamp: Date.now(),
+      channel: channelIdx === 0 ? 0 : 1,
+    };
+    onTurn(turn);
   });
 
   live.on(LiveTranscriptionEvents.Error, (err) => {
