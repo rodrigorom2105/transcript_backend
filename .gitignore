@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.env
+*.env.local
+*.log
+
+# Claude
+.claude/
+CLAUDE.md
+
+FRONTEND.md
+PROJECT_CONTEXT.md
