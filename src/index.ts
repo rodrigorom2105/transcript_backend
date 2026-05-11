@@ -14,6 +14,17 @@ import { audioHandler } from './ws/audioHandler';
 const app = Fastify({
   logger: {
     level: config.NODE_ENV === 'production' ? 'info' : 'debug',
+    serializers: {
+      req(req) {
+        return {
+          method: req.method,
+          url: req.url?.split('?')[0],  // strip query params (hides JWT token in /audio)
+        };
+      },
+      res(res) {
+        return { status: res.statusCode };
+      },
+    },
   },
 });
 

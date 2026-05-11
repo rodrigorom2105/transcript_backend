@@ -49,9 +49,6 @@ export function createDeepgramSession(
   });
 
   live.on(LiveTranscriptionEvents.Transcript, (data) => {
-    // DEBUG: log raw structure to verify Deepgram response shape
-    logger.info({ deepgramRaw: JSON.stringify(data) }, 'Deepgram transcript event');
-
     const d = data as { channel_index?: number[]; channel?: { alternatives?: { transcript?: string }[] } };
     const channelIdx = d.channel_index?.[0] ?? 0;
     const text = d.channel?.alternatives?.[0]?.transcript?.trim();
