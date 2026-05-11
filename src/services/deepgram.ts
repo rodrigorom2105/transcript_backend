@@ -28,7 +28,7 @@ const LIVE_CONFIG = {
   smart_format: true,
   punctuate: true,
   interim_results: false,
-  keywords: KEYWORDS,
+  keyterm: KEYWORDS,
 };
 
 export interface DeepgramSession {
