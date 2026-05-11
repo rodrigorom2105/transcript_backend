@@ -74,13 +74,15 @@ Valores que debes rellenar:
 
 ```bash
 cd /opt/iul-backend
-sudo -u iul node -e "
-  require('dotenv/config');
-  require('./dist/db/migrate');
-"
-# O más simple desde el source (si tsx está instalado globalmente):
-# npm run db:migrate
+
+# Cargar las variables de entorno y correr el migrate
+sudo -u iul bash -c 'set -a && source /etc/iul-backend.env && set +a && npm run db:migrate'
 ```
+
+> **Nota local (desarrollo):** Si estás en tu máquina con un `.env` en la raíz del proyecto, simplemente:
+> ```bash
+> npm run db:migrate
+> ```
 
 ## 7. Instalar y habilitar servicio systemd
 
