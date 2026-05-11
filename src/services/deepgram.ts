@@ -2,6 +2,7 @@ import { createClient, LiveTranscriptionEvents } from '@deepgram/sdk';
 import type { LiveClient } from '@deepgram/sdk';
 import { config } from '../config';
 import type { TranscriptTurn } from '../types';
+import { logger } from '../utils/logger';
 
 const KEYWORDS = [
   'indexed universal life',
@@ -43,9 +44,14 @@ export function createDeepgramSession(
   const client = createClient(config.DEEPGRAM_API_KEY);
   const live: LiveClient = client.listen.live(LIVE_CONFIG);
 
+  live.on(LiveTranscriptionEvents.Open, () => {
+    logger.info('Deepgram connection opened');
+  });
+
   live.on(LiveTranscriptionEvents.Transcript, (data) => {
-    // In multichannel mode each event is for one channel:
-    // channel_index[0] = which channel, channel (singular) = content
+    // DEBUG: log raw structure to verify Deepgram response shape
+    logger.info({ deepgramRaw: JSON.stringify(data) }, 'Deepgram transcript event');
+
     const d = data as { channel_index?: number[]; channel?: { alternatives?: { transcript?: string }[] } };
     const channelIdx = d.channel_index?.[0] ?? 0;
     const text = d.channel?.alternatives?.[0]?.transcript?.trim();

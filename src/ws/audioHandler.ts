@@ -63,7 +63,7 @@ export async function audioHandler(app: FastifyInstance) {
 
       const deepgram = createDeepgramSession(
         async (turn) => {
-          logger.debug({ sessionId: sid, speaker: turn.speaker, channel: turn.channel }, 'transcript turn');
+          logger.info({ sessionId: sid, speaker: turn.speaker, channel: turn.channel }, 'transcript turn');
           try {
             await pushTurn(sid, turn);
           } catch (err) {
