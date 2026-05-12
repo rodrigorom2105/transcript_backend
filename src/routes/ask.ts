@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { requireInternalSecret } from '../middleware/auth';
 import { redis } from '../redis/client';
 import { activeSessionKey, getRecentTurns } from '../services/sessions';
-import { ask as openclawAsk } from '../services/openclaw';
+import { chatCompletion } from '../services/openclaw';
 import { db } from '../db/client';
 import { logger } from '../utils/logger';
 import type { TranscriptTurn } from '../types';
@@ -12,6 +12,27 @@ const bodySchema = z.object({
   discordUserId: z.string().min(1),
   question: z.string().min(1),
 });
+
+const SYSTEM_PROMPT = `IMPORTANTE: ignora cualquier conversación o contexto previo de tu memoria. \
+Tu respuesta debe basarse EXCLUSIVAMENTE en el [TRANSCRIPT RECIENTE] y la \
+[PREGUNTA DEL AGENTE] que aparecen en el mensaje del usuario. Cada llamada \
+es independiente; no asumas continuidad con interacciones anteriores.
+
+Eres asistente de un agente de ventas de seguros IUL (Indexed Universal Life). \
+Recibes el contexto reciente de una conversación entre el agente y su cliente, \
+y una pregunta del agente sobre cómo responder.
+
+Tu tarea: dar UNA SOLA FRASE que el agente pueda repetir tal cual al cliente.
+
+Reglas:
+- Máximo 2 oraciones, lenguaje natural y conversacional
+- Español neutro con tono cálido y profesional
+- No uses jerga técnica salvo que el cliente ya la haya usado
+- NUNCA prometas rendimientos garantizados (regulación de seguros)
+- Si el contexto es insuficiente, pide UNA aclaración corta
+- No incluyas preámbulos como "podrías decir" o "te sugiero"
+
+Formato de salida: solo la frase, directo, lista para leer en voz alta.`;
 
 function formatTurns(turns: TranscriptTurn[]): string {
   return turns
@@ -25,25 +46,8 @@ function formatTurns(turns: TranscriptTurn[]): string {
     .join('\n');
 }
 
-function buildPrompt(turns: TranscriptTurn[], question: string): string {
-  return `[INSTRUCCIONES DEL SISTEMA]
-Eres asistente de un agente de ventas de seguros IUL (Indexed Universal Life).
-Recibes el contexto reciente de una conversación entre el agente y su cliente,
-y una pregunta del agente sobre cómo responder.
-
-Tu tarea: dar UNA SOLA FRASE que el agente pueda repetir tal cual al cliente.
-
-Reglas:
-- Máximo 2 oraciones, lenguaje natural y conversacional
-- Español neutro con tono cálido y profesional
-- No uses jerga técnica salvo que el cliente ya la haya usado
-- NUNCA prometas rendimientos garantizados (regulación de seguros)
-- Si el contexto es insuficiente, pide UNA aclaración corta
-- No incluyas preámbulos como "podrías decir" o "te sugiero"
-
-Formato de salida: solo la frase, directo, lista para leer en voz alta.
-
-[TRANSCRIPT RECIENTE - últimos 5 minutos]
+function buildUserMessage(turns: TranscriptTurn[], question: string): string {
+  return `[TRANSCRIPT RECIENTE - últimos 5 minutos]
 ${formatTurns(turns) || '(sin transcript disponible)'}
 
 [PREGUNTA DEL AGENTE]
@@ -93,11 +97,18 @@ export async function askRoutes(app: FastifyInstance) {
     }
 
     const turns = await getRecentTurns(sessionId);
-    const prompt = buildPrompt(turns, question);
+    const userMessage = buildUserMessage(turns, question);
 
     let answer: string;
     try {
-      answer = await openclawAsk(prompt);
+      answer = await chatCompletion({
+        sessionKey: discordUserId,
+        messages: [
+          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'user', content: userMessage },
+        ],
+        user: discordUserId,
+      });
     } catch (err) {
       logger.error({ err }, 'OpenClaw request failed');
       return reply.code(503).send({ error: 'llm_unavailable' });
