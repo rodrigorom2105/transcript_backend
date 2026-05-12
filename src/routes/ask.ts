@@ -51,6 +51,34 @@ ${question}`;
 }
 
 export async function askRoutes(app: FastifyInstance) {
+  app.get<{ Params: { discordUserId: string } }>(
+    '/status/:discordUserId',
+    { preHandler: requireInternalSecret },
+    async (req, reply) => {
+      const { discordUserId } = req.params;
+
+      const sessionId = await redis.get(activeSessionKey(discordUserId));
+      if (!sessionId) {
+        return reply.code(200).send({ active: false });
+      }
+
+      const result = await db.query<{ started_at: Date }>(
+        `SELECT started_at FROM sessions WHERE id = $1`,
+        [sessionId]
+      );
+
+      if (result.rows.length === 0) {
+        return reply.code(200).send({ active: false });
+      }
+
+      return reply.code(200).send({
+        active: true,
+        sessionId,
+        startedAt: result.rows[0].started_at.toISOString(),
+      });
+    }
+  );
+
   app.post('/ask', { preHandler: requireInternalSecret }, async (req, reply) => {
     const parsed = bodySchema.safeParse(req.body);
     if (!parsed.success) {
