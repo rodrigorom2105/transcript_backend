@@ -11,7 +11,7 @@ const schema = z.object({
 
   OPENCLAW_URL: z.string().url(),
   OPENCLAW_GATEWAY_TOKEN: z.string().min(1),
-  OPENCLAW_AGENT_ID: z.string().min(1).default('iul-assistant'),
+  OPENCLAW_AGENT_ID: z.string().min(1).default('discord-bot'),
   OPENCLAW_MODEL: z.string().min(1).optional(),
   OPENCLAW_REQUEST_TIMEOUT_MS: z.coerce.number().default(120000),
 
