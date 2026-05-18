@@ -91,13 +91,16 @@ export async function askRoutes(app: FastifyInstance) {
 
     const { discordUserId, question } = parsed.data;
 
+    const tStart = Date.now();
     const sessionId = await redis.get(activeSessionKey(discordUserId));
     if (!sessionId) {
       return reply.code(404).send({ error: 'no_active_session' });
     }
+    const tRedis = Date.now();
 
     const turns = await getRecentTurns(sessionId);
     const userMessage = buildUserMessage(turns, question);
+    const tTurns = Date.now();
 
     let answer: string;
     try {
@@ -114,12 +117,28 @@ export async function askRoutes(app: FastifyInstance) {
       return reply.code(503).send({ error: 'llm_unavailable' });
     }
 
+    const tLlm = Date.now();
+
     await db.query(
       `INSERT INTO questions (session_id, question, answer) VALUES ($1, $2, $3)`,
       [sessionId, question, answer]
     );
+    const tDb = Date.now();
 
-    logger.info({ sessionId, discordUserId }, 'question answered');
+    logger.info(
+      {
+        sessionId,
+        discordUserId,
+        timing: {
+          redis_ms: tRedis - tStart,
+          turns_ms: tTurns - tRedis,
+          llm_ms: tLlm - tTurns,
+          db_ms: tDb - tLlm,
+          total_ms: tDb - tStart,
+        },
+      },
+      'question answered'
+    );
     return reply.code(200).send({ answer });
   });
 }

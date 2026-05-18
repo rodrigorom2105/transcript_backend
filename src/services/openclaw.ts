@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { config } from '../config';
+import { logger } from '../utils/logger';
 
 export interface OpenClawMessage {
   role: 'system' | 'user';
@@ -29,6 +30,7 @@ export async function chatCompletion(params: {
   const effectiveSessionKey = normalizeSessionKey(sessionKey);
 
   let data: unknown;
+  const t0 = Date.now();
   try {
     const res = await axios.post(
       `${config.OPENCLAW_URL}/v1/chat/completions`,
@@ -52,12 +54,16 @@ export async function chatCompletion(params: {
       }
     );
     data = res.data;
+    logger.info({ ms: Date.now() - t0, model }, 'openclaw request completed');
   } catch (err: unknown) {
+    const ms = Date.now() - t0;
     if (axios.isAxiosError(err) && err.response) {
+      logger.warn({ ms, status: err.response.status }, 'openclaw request failed');
       throw new OpenClawError(
         `OpenClaw HTTP ${err.response.status}: ${String(err.response.data ?? err.response.statusText)}`
       );
     }
+    logger.warn({ ms, err: String(err) }, 'openclaw request errored');
     throw new OpenClawError(`No se pudo contactar a OpenClaw: ${String(err)}`);
   }
 
