@@ -32,7 +32,14 @@ export async function chatCompletion(params: {
   try {
     const res = await axios.post(
       `${config.OPENCLAW_URL}/v1/chat/completions`,
-      { model, messages, stream: false, user },
+      {
+        model,
+        messages,
+        stream: false,
+        user,
+        tool_choice: 'none',
+        extra_body: { agent: { mode: 'chat' } },
+      },
       {
         timeout: config.OPENCLAW_REQUEST_TIMEOUT_MS,
         headers: {
