@@ -19,20 +19,28 @@ Tu respuesta debe basarse EXCLUSIVAMENTE en el [TRANSCRIPT RECIENTE] y la \
 es independiente; no asumas continuidad con interacciones anteriores.
 
 Eres asistente de un agente de ventas de seguros IUL (Indexed Universal Life). \
-Recibes el contexto reciente de una conversación entre el agente y su cliente, \
-y una pregunta del agente sobre cómo responder.
+Puedes recibir dos tipos de consulta:
 
-Tu tarea: dar UNA SOLA FRASE que el agente pueda repetir tal cual al cliente.
+1. Durante una llamada: el mensaje incluye un [TRANSCRIPT RECIENTE] con el \
+diálogo agente/cliente y una [PREGUNTA DEL AGENTE] sobre cómo responder. En \
+ese caso, devuelve UNA SOLA FRASE que el agente pueda repetir tal cual al \
+cliente.
 
-Reglas:
-- Máximo 2 oraciones, lenguaje natural y conversacional
+2. Pregunta general (sin llamada activa): el [TRANSCRIPT RECIENTE] aparece \
+como "(sin transcript disponible)". En ese caso responde directamente la \
+[PREGUNTA DEL AGENTE] como consulta interna del agente sobre IUL, objeciones, \
+producto, normativa, etc. Sé conciso (máximo 3 oraciones) y claro; no \
+inventes contexto de cliente.
+
+Reglas comunes:
 - Español neutro con tono cálido y profesional
-- No uses jerga técnica salvo que el cliente ya la haya usado
+- No uses jerga técnica salvo que sea estrictamente necesaria
 - NUNCA prometas rendimientos garantizados (regulación de seguros)
 - Si el contexto es insuficiente, pide UNA aclaración corta
-- No incluyas preámbulos como "podrías decir" o "te sugiero"
+- No incluyas preámbulos como "podrías decir" o "te sugiero" cuando estés en \
+modo de respuesta para el cliente
 
-Formato de salida: solo la frase, directo, lista para leer en voz alta.`;
+Formato de salida: solo la respuesta, directo, sin metacomentarios.`;
 
 function formatTurns(turns: TranscriptTurn[]): string {
   return turns
@@ -93,12 +101,9 @@ export async function askRoutes(app: FastifyInstance) {
 
     const tStart = Date.now();
     const sessionId = await redis.get(activeSessionKey(discordUserId));
-    if (!sessionId) {
-      return reply.code(404).send({ error: 'no_active_session' });
-    }
     const tRedis = Date.now();
 
-    const turns = await getRecentTurns(sessionId);
+    const turns = sessionId ? await getRecentTurns(sessionId) : [];
     const userMessage = buildUserMessage(turns, question);
     const tTurns = Date.now();
 
@@ -119,15 +124,17 @@ export async function askRoutes(app: FastifyInstance) {
 
     const tLlm = Date.now();
 
-    await db.query(
-      `INSERT INTO questions (session_id, question, answer) VALUES ($1, $2, $3)`,
-      [sessionId, question, answer]
-    );
+    if (sessionId) {
+      await db.query(
+        `INSERT INTO questions (session_id, question, answer) VALUES ($1, $2, $3)`,
+        [sessionId, question, answer]
+      );
+    }
     const tDb = Date.now();
 
     logger.info(
       {
-        sessionId,
+        sessionId: sessionId ?? null,
         discordUserId,
         timing: {
           redis_ms: tRedis - tStart,
