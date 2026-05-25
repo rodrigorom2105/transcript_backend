@@ -18,6 +18,7 @@
     "axios": "^1",
     "dotenv": "^16",
     "fastify": "^4",
+    "googleapis": "^144",
     "ioredis": "^5",
     "jsonwebtoken": "^9",
     "pg": "^8",

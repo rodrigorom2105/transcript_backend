@@ -9,6 +9,7 @@ import { redis } from './redis/client';
 import { authRoutes } from './routes/auth';
 import { sessionRoutes } from './routes/sessions';
 import { askRoutes } from './routes/ask';
+import { clockRoutes } from './routes/clock';
 import { audioHandler } from './ws/audioHandler';
 
 const app = Fastify({
@@ -52,6 +53,7 @@ async function bootstrap() {
   await app.register(authRoutes);
   await app.register(sessionRoutes);
   await app.register(askRoutes);
+  await app.register(clockRoutes);
   await app.register(audioHandler);
 
   await app.listen({ host: '0.0.0.0', port: config.PORT });
