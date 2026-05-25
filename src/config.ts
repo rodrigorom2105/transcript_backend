@@ -28,6 +28,9 @@ const schema = z.object({
   GOOGLE_SERVICE_ACCOUNT_JSON: z.string().min(1),
   GOOGLE_SHEETS_SPREADSHEET_ID: z.string().min(1),
   CLOCK_TIMEZONE: z.string().min(1).default('America/Los_Angeles'),
+
+  DASHBOARD_JWT_SECRET: z.string().min(32),
+  DASHBOARD_JWT_TTL_HOURS: z.coerce.number().default(8),
 });
 
 const parsed = schema.safeParse(process.env);

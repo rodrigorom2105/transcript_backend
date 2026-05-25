@@ -22,8 +22,14 @@ export interface TranscriptTurn {
   channel: 0 | 1;
 }
 
+export interface DashboardUser {
+  sub: number;
+  username: string;
+}
+
 declare module 'fastify' {
   interface FastifyRequest {
     user: JWTPayload;
+    dashboardUser: DashboardUser;
   }
 }

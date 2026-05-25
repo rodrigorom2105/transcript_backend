@@ -10,6 +10,7 @@ import { authRoutes } from './routes/auth';
 import { sessionRoutes } from './routes/sessions';
 import { askRoutes } from './routes/ask';
 import { clockRoutes } from './routes/clock';
+import { dashboardRoutes } from './routes/dashboard';
 import { audioHandler } from './ws/audioHandler';
 
 const app = Fastify({
@@ -32,7 +33,7 @@ const app = Fastify({
 async function bootstrap() {
   await app.register(cors, {
     origin: (origin, cb) => {
-      const allowed = [config.FRONTEND_ORIGIN, 'http://localhost:5173'];
+      const allowed = [config.FRONTEND_ORIGIN, 'http://localhost:5173', 'http://localhost:5174'];
       if (!origin || allowed.includes(origin)) {
         cb(null, true);
       } else {
@@ -54,6 +55,7 @@ async function bootstrap() {
   await app.register(sessionRoutes);
   await app.register(askRoutes);
   await app.register(clockRoutes);
+  await app.register(dashboardRoutes);
   await app.register(audioHandler);
 
   await app.listen({ host: '0.0.0.0', port: config.PORT });
