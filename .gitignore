@@ -8,5 +8,7 @@ dist/
 .claude/
 CLAUDE.md
 
+# Documentation
+docs/
 FRONTEND.md
 PROJECT_CONTEXT.md
