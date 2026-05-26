@@ -33,7 +33,7 @@ const app = Fastify({
 async function bootstrap() {
   await app.register(cors, {
     origin: (origin, cb) => {
-      const allowed = [config.FRONTEND_ORIGIN, 'http://localhost:5173', 'http://localhost:5174'];
+      const allowed = [config.FRONTEND_ORIGIN, 'http://localhost:5173', 'http://localhost:5174', ...(config.DASHBOARD_ORIGIN ? [config.DASHBOARD_ORIGIN] : [])];
       if (!origin || allowed.includes(origin)) {
         cb(null, true);
       } else {

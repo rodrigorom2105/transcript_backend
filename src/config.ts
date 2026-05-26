@@ -24,6 +24,7 @@ const schema = z.object({
   INTERNAL_SECRET: z.string().min(1),
 
   FRONTEND_ORIGIN: z.string().url(),
+  DASHBOARD_ORIGIN: z.string().url().optional(),
 
   GOOGLE_SERVICE_ACCOUNT_JSON: z.string().min(1),
   GOOGLE_SHEETS_SPREADSHEET_ID: z.string().min(1),
