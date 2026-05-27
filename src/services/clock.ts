@@ -313,6 +313,107 @@ export async function getClockEvents(opts: {
   };
 }
 
+export interface BulkClockOutEntry {
+  discordUserId: string;
+  displayName: string;
+  localTime: string;
+}
+
+export async function bulkClockOut(): Promise<BulkClockOutEntry[]> {
+  const client = await db.connect();
+
+  type LatestRow = { discord_user_id: string; display_name: string; action: ClockAction };
+  type InsertedRow = { id: number; event_at: Date; discord_user_id: string; display_name: string };
+
+  let inserted: InsertedRow[] = [];
+
+  try {
+    await client.query('BEGIN');
+
+    const latest = await client.query<LatestRow>(
+      `SELECT DISTINCT ON (discord_user_id) discord_user_id, display_name, action
+       FROM clock_events
+       ORDER BY discord_user_id, event_at DESC`
+    );
+
+    const open = latest.rows.filter((r) => r.action === 'CLOCKIN');
+
+    if (open.length === 0) {
+      await client.query('COMMIT');
+      return [];
+    }
+
+    // Acquire per-user advisory locks to serialize against concurrent individual clockouts.
+    for (const row of open) {
+      await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [row.discord_user_id]);
+    }
+
+    // Re-verify each user still has an open clockin (a concurrent individual clockout may have closed it).
+    const stillOpen: LatestRow[] = [];
+    for (const row of open) {
+      const check = await client.query<{ action: ClockAction }>(
+        `SELECT action FROM clock_events
+         WHERE discord_user_id = $1
+         ORDER BY event_at DESC
+         LIMIT 1`,
+        [row.discord_user_id]
+      );
+      if (check.rows[0]?.action === 'CLOCKIN') {
+        stillOpen.push(row);
+      }
+    }
+
+    if (stillOpen.length === 0) {
+      await client.query('COMMIT');
+      return [];
+    }
+
+    // Bulk insert CLOCKOUT rows using unnest for a single round-trip.
+    const userIds = stillOpen.map((r) => r.discord_user_id);
+    const displayNames = stillOpen.map((r) => r.display_name);
+    const result = await client.query<InsertedRow>(
+      `INSERT INTO clock_events (discord_user_id, display_name, action)
+       SELECT u, d, 'CLOCKOUT'
+       FROM unnest($1::text[], $2::text[]) AS t(u, d)
+       RETURNING id, event_at, discord_user_id, display_name`,
+      [userIds, displayNames]
+    );
+
+    inserted = result.rows;
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+
+  // Sync to Google Sheets in parallel, best-effort.
+  await Promise.allSettled(
+    inserted.map(async (row) => {
+      try {
+        await appendClockRow({
+          discordUserId: row.discord_user_id,
+          displayName: row.display_name,
+          action: 'CLOCKOUT',
+          eventAt: row.event_at,
+        });
+        await db.query(`UPDATE clock_events SET sheets_synced = TRUE WHERE id = $1`, [row.id]);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        logger.error({ err, eventId: row.id, discordUserId: row.discord_user_id }, 'Failed to sync bulk clockout to Google Sheets');
+        await db.query(`UPDATE clock_events SET sheets_error = $1 WHERE id = $2`, [message, row.id]);
+      }
+    })
+  );
+
+  return inserted.map((row) => ({
+    discordUserId: row.discord_user_id,
+    displayName: row.display_name,
+    localTime: formatInTimezone(row.event_at, config.CLOCK_TIMEZONE).time,
+  }));
+}
+
 export async function getClockHistory(
   discordUserId: string,
   limit: number

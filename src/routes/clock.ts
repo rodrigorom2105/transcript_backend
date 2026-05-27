@@ -5,6 +5,7 @@ import {
   recordClockEvent,
   getClockStatus,
   getClockHistory,
+  bulkClockOut,
   ClockError,
 } from '../services/clock';
 import { logger } from '../utils/logger';
@@ -53,6 +54,17 @@ async function handleClockAction(
 export async function clockRoutes(app: FastifyInstance) {
   await handleClockAction('CLOCKIN', app);
   await handleClockAction('CLOCKOUT', app);
+
+  app.post('/clock/out-all', { preHandler: requireInternalSecret }, async (_req, reply) => {
+    try {
+      const clockedOut = await bulkClockOut();
+      logger.info({ count: clockedOut.length }, 'bulk clockout executed');
+      return reply.code(200).send({ clockedOut, count: clockedOut.length });
+    } catch (err) {
+      logger.error({ err }, 'Unexpected error in bulk clockout');
+      return reply.code(500).send({ error: 'Internal server error' });
+    }
+  });
 
   app.get<{ Params: { discordUserId: string } }>(
     '/clock/status/:discordUserId',
