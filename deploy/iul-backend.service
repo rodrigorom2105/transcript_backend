@@ -5,7 +5,7 @@ After=network.target postgresql.service redis.service
 [Service]
 Type=simple
 User=iul
-WorkingDirectory=/opt/iul-backend
+WorkingDirectory=/root/.openclaw/workspace/iul/transcript_backend
 EnvironmentFile=/etc/iul-backend.env
 ExecStart=/usr/bin/node dist/index.js
 Restart=always

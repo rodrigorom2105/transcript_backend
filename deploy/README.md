@@ -39,24 +39,37 @@ sudo useradd --system --shell /bin/bash --create-home iul
 
 ## 4. Desplegar el código
 
-```bash
-# Clonar en /opt/iul-backend (o la ruta que prefieras)
-sudo mkdir -p /opt/iul-backend
-sudo chown iul:iul /opt/iul-backend
+OpenClaw gestiona el workspace bajo `/root/.openclaw/workspace/`. El proyecto debe estar en esa ruta para que OpenClaw pueda leerlo y modificarlo.
 
-# Como usuario iul (o clona con tu usuario y ajusta permisos)
-git clone <repo-url> /opt/iul-backend
-cd /opt/iul-backend
+```bash
+# Crear la estructura de directorios de OpenClaw si no existe
+mkdir -p /root/.openclaw/workspace/iul
+
+# Clonar el repositorio en el workspace de OpenClaw
+git clone <repo-url> /root/.openclaw/workspace/iul/transcript_backend
+cd /root/.openclaw/workspace/iul/transcript_backend
 
 npm ci --omit=dev
 npm run build
+```
+
+### Permisos para el usuario `iul`
+
+El servicio corre como `iul`, pero el proyecto vive bajo `/root/`. Hay que abrir el bit de traversal en cada nivel del path y dar ownership del proyecto:
+
+```bash
+chmod o+x /root
+chmod o+x /root/.openclaw
+chmod o+x /root/.openclaw/workspace
+chmod o+x /root/.openclaw/workspace/iul
+chown -R iul:iul /root/.openclaw/workspace/iul/transcript_backend
 ```
 
 ## 5. Variables de entorno
 
 ```bash
 # Copiar la plantilla y rellenar los valores reales
-sudo cp .env.example /etc/iul-backend.env
+sudo cp /root/.openclaw/workspace/iul/transcript_backend/.env.example /etc/iul-backend.env
 sudo chmod 600 /etc/iul-backend.env
 sudo nano /etc/iul-backend.env
 ```
@@ -73,7 +86,7 @@ Valores que debes rellenar:
 ## 6. Ejecutar migraciones
 
 ```bash
-cd /opt/iul-backend
+cd /root/.openclaw/workspace/iul/transcript_backend
 
 # Cargar las variables de entorno y correr el migrate
 sudo -u iul bash -c 'set -a && source /etc/iul-backend.env && set +a && npm run db:migrate'
@@ -87,7 +100,7 @@ sudo -u iul bash -c 'set -a && source /etc/iul-backend.env && set +a && npm run 
 ## 7. Instalar y habilitar servicio systemd
 
 ```bash
-sudo cp /opt/iul-backend/deploy/iul-backend.service /etc/systemd/system/
+sudo cp /root/.openclaw/workspace/iul/transcript_backend/deploy/iul-backend.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable iul-backend
 sudo systemctl start iul-backend
@@ -132,7 +145,7 @@ sudo systemctl restart iul-backend
 sudo journalctl -u iul-backend -f
 
 # Actualizar código (deploy manual)
-cd /opt/iul-backend
+cd /root/.openclaw/workspace/iul/transcript_backend
 git pull
 npm ci --omit=dev
 npm run build
