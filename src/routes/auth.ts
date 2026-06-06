@@ -7,6 +7,28 @@ import { logger } from '../utils/logger';
 
 const bodySchema = z.object({ code: z.string().min(1) });
 
+function logSafeOAuthError(err: unknown) {
+  const maybeAxios = err as {
+    isAxiosError?: boolean;
+    message?: string;
+    response?: { status?: number; data?: unknown };
+  };
+
+  if (maybeAxios.isAxiosError) {
+    logger.error(
+      {
+        status: maybeAxios.response?.status,
+        data: maybeAxios.response?.data,
+        message: maybeAxios.message,
+      },
+      'Discord OAuth exchange failed'
+    );
+    return;
+  }
+
+  logger.error({ err }, 'Discord OAuth exchange failed');
+}
+
 export async function authRoutes(app: FastifyInstance) {
   app.post('/auth/discord', {
     config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
@@ -24,7 +46,7 @@ export async function authRoutes(app: FastifyInstance) {
       discordUser = result.user;
       guilds = result.guilds;
     } catch (err) {
-      logger.error({ err }, 'Discord OAuth exchange failed');
+      logSafeOAuthError(err);
       return reply.code(500).send({ error: 'Discord API error' });
     }
 

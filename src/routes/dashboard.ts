@@ -4,7 +4,6 @@ import { requireDashboardJwt } from '../middleware/auth';
 import {
   verifyCredentials,
   signDashboardJwt,
-  verifyDashboardJwt,
   dashboardTokenExpiresAt,
 } from '../services/dashboardAuth';
 import { getDashboardSummary, getClockEvents } from '../services/clock';

@@ -15,6 +15,13 @@ const schema = z.object({
   OPENCLAW_MODEL: z.string().min(1).optional(),
   OPENCLAW_REQUEST_TIMEOUT_MS: z.coerce.number().default(120000),
 
+  OPENAI_API_KEY: z.string().min(1).optional(),
+  GPT_MODEL: z.string().min(1).default('gpt-4.1-mini'),
+  GPT_REQUEST_TIMEOUT_MS: z.coerce.number().default(30000),
+  COPILOT_ENABLED: z.coerce.boolean().default(true),
+  COPILOT_PROVIDER: z.enum(['gpt_api', 'openclaw', 'playbook_only']).default('gpt_api'),
+  COPILOT_MIN_SECONDS_BETWEEN_SUGGESTIONS: z.coerce.number().default(20),
+
   DISCORD_CLIENT_ID: z.string().min(1),
   DISCORD_CLIENT_SECRET: z.string().min(1),
   DISCORD_GUILD_ID: z.string().min(1),
@@ -24,6 +31,7 @@ const schema = z.object({
   INTERNAL_SECRET: z.string().min(1),
 
   FRONTEND_ORIGIN: z.string().url(),
+  FRONTEND_EXTRA_ORIGINS: z.string().default(''),
   DASHBOARD_ORIGIN: z.string().url().optional(),
 
   GOOGLE_SERVICE_ACCOUNT_JSON: z.string().min(1),
