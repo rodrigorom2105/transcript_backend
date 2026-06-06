@@ -5,6 +5,7 @@ import { redis } from '../redis/client';
 import { activeSessionKey, endSession, pushTurn } from '../services/sessions';
 import { createDeepgramSession } from '../services/deepgram';
 import { logger } from '../utils/logger';
+import { analyzeTurn } from '../copilot/analyzer';
 
 const SILENCE_TIMEOUT_MS = 60_000;
 
@@ -66,6 +67,10 @@ export async function audioHandler(app: FastifyInstance) {
           logger.info({ sessionId: sid, speaker: turn.speaker, channel: turn.channel }, 'transcript turn');
           try {
             await pushTurn(sid, turn);
+            const analysis = await analyzeTurn(sid, turn);
+            if (analysis.stageChanged && socket.readyState === 1) {
+              socket.send(JSON.stringify({ type: 'call_stage', stage: analysis.stage }));
+            }
           } catch (err) {
             logger.error({ err }, 'error saving transcript turn');
           }

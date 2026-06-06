@@ -31,6 +31,12 @@ export async function createSession(discordUserId: string, agentName: string): P
   );
 
   await redis.set(activeSessionKey(discordUserId), sessionId);
+  await redis.set(
+    `session:${sessionId}:copilot_state`,
+    JSON.stringify({ stage: 'opening', updatedAt: Date.now() }),
+    'EX',
+    3600
+  );
 
   logger.info({ sessionId, discordUserId }, 'session created');
   return sessionId;
@@ -66,6 +72,7 @@ export async function endSession(sessionId: string, discordUserId: string) {
   }
 
   await redis.del(transcriptKey(sessionId));
+  await redis.del(`session:${sessionId}:copilot_state`);
   await redis.del(activeSessionKey(discordUserId));
 
   logger.info({ sessionId, discordUserId, turns: rawTurns.length }, 'session ended');

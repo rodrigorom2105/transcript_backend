@@ -11,6 +11,7 @@ import { sessionRoutes } from './routes/sessions';
 import { askRoutes } from './routes/ask';
 import { clockRoutes } from './routes/clock';
 import { dashboardRoutes } from './routes/dashboard';
+import { copilotRoutes } from './routes/copilot';
 import { audioHandler } from './ws/audioHandler';
 
 const app = Fastify({
@@ -33,7 +34,17 @@ const app = Fastify({
 async function bootstrap() {
   await app.register(cors, {
     origin: (origin, cb) => {
-      const allowed = [config.FRONTEND_ORIGIN, 'http://localhost:5173', 'http://localhost:5174', ...(config.DASHBOARD_ORIGIN ? [config.DASHBOARD_ORIGIN] : [])];
+      const extraOrigins = config.FRONTEND_EXTRA_ORIGINS
+        .split(',')
+        .map((value) => value.trim())
+        .filter(Boolean);
+      const allowed = [
+        config.FRONTEND_ORIGIN,
+        'http://localhost:5173',
+        'http://localhost:5174',
+        ...extraOrigins,
+        ...(config.DASHBOARD_ORIGIN ? [config.DASHBOARD_ORIGIN] : []),
+      ];
       if (!origin || allowed.includes(origin)) {
         cb(null, true);
       } else {
@@ -56,6 +67,7 @@ async function bootstrap() {
   await app.register(askRoutes);
   await app.register(clockRoutes);
   await app.register(dashboardRoutes);
+  await app.register(copilotRoutes);
   await app.register(audioHandler);
 
   await app.listen({ host: '0.0.0.0', port: config.PORT });
