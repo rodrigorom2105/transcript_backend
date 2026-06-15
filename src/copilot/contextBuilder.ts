@@ -38,26 +38,36 @@ function formatTurns(turns: TranscriptTurn[]): string {
     .join('\n');
 }
 
+function extractScriptSection(script: string, headingIncludes: string): string {
+  const headingMatch = script.match(new RegExp(`^## .*${headingIncludes.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}.*$`, 'm'));
+  if (!headingMatch || headingMatch.index === undefined) return '';
+
+  const start = headingMatch.index;
+  const next = script.indexOf('\n## ', start + headingMatch[0].length);
+  return script.slice(start, next === -1 ? undefined : next).trim();
+}
+
 function selectScriptSection(stage: CallStage): string {
   const script = readPlaybook('iul-script.md');
   if (!script) return '';
 
-  const sectionByStage: Partial<Record<CallStage, string>> = {
-    opening: '## Apertura',
-    discovery: '## Descubrimiento',
-    presentation: '## Presentación breve',
-    objection_handling: '## Descubrimiento',
-    closing: '## Cierre suave',
-    follow_up: '## Cierre suave',
+  const headingsByStage: Partial<Record<CallStage, string[]>> = {
+    opening: ['Paso 1: Introducción Confiada', 'Paso 2: Identificación y Credibilidad'],
+    discovery: ['Paso 4: Fact-Finding y Cierre'],
+    presentation: ['Paso 3: Explicación del IUL - Lo Básico', 'Beneficios Clave de la IUL', 'Resumen Final de Beneficios'],
+    objection_handling: ['Pullback - Psicología Inversa', 'Paso 4: Fact-Finding y Cierre'],
+    closing: ['Cierre Final - Sin Presión', 'APLICACIÓN'],
+    follow_up: ['Cierre Final con el Cliente', 'Pasos para Firmar NLG'],
   };
 
-  const marker = sectionByStage[stage];
-  if (!marker) return script.slice(0, 1200);
+  const headings = headingsByStage[stage];
+  if (!headings) return '';
 
-  const start = script.indexOf(marker);
-  if (start === -1) return script.slice(0, 1200);
-  const next = script.indexOf('\n## ', start + marker.length);
-  return script.slice(start, next === -1 ? undefined : next).trim();
+  const sections = headings
+    .map((heading) => extractScriptSection(script, heading))
+    .filter(Boolean);
+
+  return sections.join('\n\n---\n\n').trim();
 }
 
 export async function buildCopilotContext(params: {
