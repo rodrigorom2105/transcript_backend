@@ -12,6 +12,7 @@ import { askRoutes } from './routes/ask';
 import { clockRoutes } from './routes/clock';
 import { dashboardRoutes } from './routes/dashboard';
 import { copilotRoutes } from './routes/copilot';
+import { salesRoutes } from './routes/sales';
 import { audioHandler } from './ws/audioHandler';
 
 const app = Fastify({
@@ -51,7 +52,7 @@ async function bootstrap() {
         cb(new Error('Not allowed by CORS'), false);
       }
     },
-    methods: ['GET', 'POST', 'OPTIONS'],
+    methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Authorization', 'Content-Type', 'X-Internal-Secret'],
     credentials: true,
   });
@@ -68,6 +69,7 @@ async function bootstrap() {
   await app.register(clockRoutes);
   await app.register(dashboardRoutes);
   await app.register(copilotRoutes);
+  await app.register(salesRoutes);
   await app.register(audioHandler);
 
   await app.listen({ host: '0.0.0.0', port: config.PORT });
