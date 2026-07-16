@@ -38,36 +38,62 @@ function formatTurns(turns: TranscriptTurn[]): string {
     .join('\n');
 }
 
-function extractScriptSection(script: string, headingIncludes: string): string {
-  const headingMatch = script.match(new RegExp(`^## .*${headingIncludes.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}.*$`, 'm'));
+function extractMarkdownSection(markdown: string, headingIncludes: string): string {
+  const escaped = headingIncludes.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const headingMatch = markdown.match(new RegExp(`^#{2,3} .*${escaped}.*$`, 'm'));
   if (!headingMatch || headingMatch.index === undefined) return '';
 
   const start = headingMatch.index;
-  const next = script.indexOf('\n## ', start + headingMatch[0].length);
-  return script.slice(start, next === -1 ? undefined : next).trim();
+  const headingLevel = headingMatch[0].match(/^#+/)?.[0].length ?? 2;
+  const nextHeading = markdown
+    .slice(start + headingMatch[0].length)
+    .search(new RegExp(`\\n#{1,${headingLevel}} `));
+  const end = nextHeading === -1
+    ? undefined
+    : start + headingMatch[0].length + nextHeading;
+
+  return markdown.slice(start, end).trim();
 }
 
-function selectScriptSection(stage: CallStage): string {
-  const script = readPlaybook('iul-script.md');
-  if (!script) return '';
+function extractSections(markdown: string, headings: string[]): string {
+  return headings
+    .map((heading) => extractMarkdownSection(markdown, heading))
+    .filter(Boolean)
+    .join('\n\n---\n\n')
+    .trim();
+}
 
-  const headingsByStage: Partial<Record<CallStage, string[]>> = {
-    opening: ['Paso 1: Introducción Confiada', 'Paso 2: Identificación y Credibilidad'],
-    discovery: ['Paso 4: Fact-Finding y Cierre'],
-    presentation: ['Paso 3: Explicación del IUL - Lo Básico', 'Beneficios Clave de la IUL', 'Resumen Final de Beneficios'],
-    objection_handling: ['Pullback - Psicología Inversa', 'Paso 4: Fact-Finding y Cierre'],
-    closing: ['Cierre Final - Sin Presión', 'APLICACIÓN'],
-    follow_up: ['Cierre Final con el Cliente', 'Pasos para Firmar NLG'],
+function selectOperatingGuidance(stage: CallStage): string {
+  const profile = readPlaybook('sales-operating-profile.md');
+  if (!profile) return '';
+
+  const common = extractSections(profile, [
+    'Rol central del Co-Pilot',
+    'Personalidad del Co-Pilot',
+    'Reglas de comportamiento en tiempo real',
+    'Framework de llamada',
+  ]);
+
+  const stageHeadingsByStage: Partial<Record<CallStage, string[]>> = {
+    opening: ['Etapa opening'],
+    discovery: ['Etapa discovery'],
+    presentation: ['Etapa presentation'],
+    objection_handling: ['Etapa objection_handling', 'Manejo de desviaciones del guion'],
+    closing: ['Etapa closing'],
+    follow_up: ['Etapa follow_up', 'Manejo de desviaciones del guion'],
+    idle: ['Prompt maestro'],
+    ended: ['Principios finales'],
   };
 
-  const headings = headingsByStage[stage];
-  if (!headings) return '';
+  const stageSpecific = extractSections(profile, stageHeadingsByStage[stage] ?? []);
+  const checklist = extractMarkdownSection(profile, 'Checklist de avance por etapa');
+  const responseFormat = extractMarkdownSection(profile, 'Formato ideal de respuesta');
+  const principles = extractMarkdownSection(profile, 'Principios finales');
 
-  const sections = headings
-    .map((heading) => extractScriptSection(script, heading))
-    .filter(Boolean);
-
-  return sections.join('\n\n---\n\n').trim();
+  return [common, stageSpecific, checklist, responseFormat, principles]
+    .filter(Boolean)
+    .join('\n\n---\n\n')
+    .trim();
 }
 
 export async function buildCopilotContext(params: {
@@ -78,13 +104,45 @@ export async function buildCopilotContext(params: {
   const turns = await getRecentTurns(params.sessionId, RECENT_WINDOW_MS);
   const transcriptExcerpt = formatTurns(turns) || '(sin transcript disponible)';
 
-  const compliance = readPlaybook('compliance-rules.md').slice(0, 1600);
-  const faq = readPlaybook('product-faq.md').slice(0, 1400);
-  const script = selectScriptSection(stage).slice(0, 1200);
+  const operatingGuidance = selectOperatingGuidance(stage).slice(0, 5200);
 
-  const systemPrompt = `Eres un copilot silencioso para un agente humano que vende seguros IUL.\nTu tarea es sugerir UNA frase breve que el agente pueda decir al cliente.\n\nReglas:\n- Responde en español neutro.\n- Máximo 2 frases.\n- No uses metacomentarios como "puedes decir" o "te sugiero".\n- No inventes datos que no estén en el contexto.\n- No prometas rendimientos garantizados.\n- No presentes IUL como inversión garantizada o sin riesgo.\n- Si falta contexto, sugiere una pregunta aclaratoria breve.\n- La salida debe ser solo la frase para decir al cliente.`;
+  const systemPrompt = `Eres el IUL Sales Co-Pilot para un agente humano en una llamada de venta en tiempo real.
+Tu funcion es sugerir UNA frase lista para decir que mantenga control, profundice necesidad, maneje objeciones y avance hacia la aplicacion.
 
-  const userPrompt = `[ESTADO DE LA LLAMADA]\nEtapa: ${stage}\nSeñal: ${params.signal.type}\nMotivo: ${params.signal.reason}\nKeywords: ${params.signal.matchedKeywords.join(', ') || '(ninguna)'}\n\n[TRANSCRIPT RECIENTE]\n${transcriptExcerpt}\n\n[GUION RELEVANTE]\n${script || '(sin guion disponible)'}\n\n[FAQ PRODUCTO]\n${faq || '(sin FAQ disponible)'}\n\n[REGLAS DE COMPLIANCE]\n${compliance || '(sin reglas disponibles)'}\n\nGenera solo la frase que debería decir el agente al cliente ahora.`;
+Mindset:
+- No eres un bot informativo; eres un asistente de cierre.
+- Se servicial, estrategico, sharp, empatico y firme con elegancia.
+- El cliente no necesita informacion generica; necesita descubrir si esta herramienta resuelve la razon por la que pidio ayuda.
+- Valida al cliente sin ceder el control de la llamada.
+- Si el cliente pregunta fuera de tiempo, valida, responde breve y regresa con una pregunta estrategica.
+- No permitas avanzar sin un why claro.
+- Despues de explicar el producto, empuja la auto-venta: que el cliente diga como el IUL lo podria beneficiar.
+- Despues de la auto-venta, usa pullback real: no toda persona califica por edad, salud, presupuesto y aprobacion.
+- Antes de cerrar, ayuda a contrastar el futuro con y sin accion, y transiciona a la aplicacion como siguiente paso natural para revisar si califica.
+
+Limites:
+- Responde en espanol latino natural.
+- Maximo 1 a 3 frases cortas.
+- No uses metacomentarios como "puedes decir", "te sugiero", "diagnostico" o "intencion".
+- No inventes datos que no esten en el contexto.
+- No prometas rendimientos, aprobacion, cobertura, beneficios ni resultados garantizados.
+- No presentes IUL como inversion pura, inversion garantizada o sin riesgo.
+- La salida debe ser solo la frase para decir al cliente.`;
+
+const userPrompt = `[ESTADO DE LA LLAMADA]
+Etapa: ${stage}
+Señal: ${params.signal.type}
+Motivo: ${params.signal.reason}
+Keywords: ${params.signal.matchedKeywords.join(', ') || '(ninguna)'}
+
+[TRANSCRIPT RECIENTE]
+${transcriptExcerpt}
+
+[FUENTE OPERATIVA UNICA]
+${operatingGuidance || '(sin perfil operativo disponible)'}
+
+Usa exclusivamente la fuente operativa anterior, la etapa detectada y el transcript reciente para decidir que debe hacer el agente ahora.
+Genera solo UNA frase lista para decir al cliente.`;
 
   return { systemPrompt, userPrompt, transcriptExcerpt, stage };
 }

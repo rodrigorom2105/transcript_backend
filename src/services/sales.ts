@@ -135,6 +135,12 @@ function normalizeCode(value: string): string {
   return value.trim().toUpperCase();
 }
 
+function normalizeRequiredCode(value: string, errorCode: string): string {
+  const normalized = normalizeCode(value);
+  if (!normalized) throw new SalesError(errorCode);
+  return normalized;
+}
+
 function amountToCents(amount: number): number {
   if (!Number.isFinite(amount) || amount <= 0) throw new SalesError('invalid_amount');
   return Math.round(amount * 100);
@@ -162,20 +168,31 @@ function parseSignature(input: string): { status: SignatureStatus; date: string 
 }
 
 async function resolveCatalog(companyCode: string, productCode: string): Promise<{ companyId: number; productId: number }> {
-  const company = normalizeCode(companyCode);
-  const product = normalizeCode(productCode);
-  const result = await db.query<{ company_id: number; product_id: number }>(
-    `SELECT c.id AS company_id, p.id AS product_id
-     FROM sales_companies c
-     JOIN sales_products p ON p.company_id = c.id
-     WHERE c.code = $1 AND p.code = $2 AND c.active = TRUE AND p.active = TRUE`,
-    [company, product]
+  const company = normalizeRequiredCode(companyCode, 'invalid_company');
+  const product = normalizeRequiredCode(productCode, 'invalid_product');
+
+  const companyResult = await db.query<{ id: number }>(
+    `INSERT INTO sales_companies (code, name, active)
+     VALUES ($1, $1, TRUE)
+     ON CONFLICT (code) DO UPDATE
+     SET name = EXCLUDED.name,
+         active = TRUE
+     RETURNING id`,
+    [company]
   );
-  if (!result.rows[0]) {
-    const companyExists = await db.query('SELECT 1 FROM sales_companies WHERE code = $1 AND active = TRUE', [company]);
-    throw new SalesError(companyExists.rows[0] ? 'invalid_product' : 'invalid_company');
-  }
-  return { companyId: result.rows[0].company_id, productId: result.rows[0].product_id };
+  const companyId = companyResult.rows[0].id;
+
+  const productResult = await db.query<{ id: number }>(
+    `INSERT INTO sales_products (company_id, code, name, active)
+     VALUES ($1, $2, $2, TRUE)
+     ON CONFLICT (company_id, code) DO UPDATE
+     SET name = EXCLUDED.name,
+         active = TRUE
+     RETURNING id`,
+    [companyId, product]
+  );
+
+  return { companyId, productId: productResult.rows[0].id };
 }
 
 export async function getSalesCatalog() {
